@@ -332,7 +332,7 @@ describe('Resource(basic)', function() {
   });
 
   describe('list', function() {
-    beforeEach(function(done) {
+    beforeEach(function() {
       test.userlist = [
         { username: 'arthur', email: 'arthur@gmail.com' },
         { username: 'james', email: 'james@gmail.com' },
@@ -342,17 +342,7 @@ describe('Resource(basic)', function() {
         { username: 'arthur', email: 'aaaaarthur@gmail.com' }
       ];
 
-      async.each(test.userlist, function(data, callback) {
-        request.post({
-          url: test.baseUrl + '/users',
-          json: data
-        }, function(error, response, body) {
-          expect(response).to.not.be.null;
-          expect(response.statusCode).to.equal(201);
-          expect(response.headers.location).to.match(/\/users\/\d+/);
-          callback();
-        });
-      }, done);
+      return test.models.User.bulkCreate(test.userlist);
     });
 
     afterEach(function() {

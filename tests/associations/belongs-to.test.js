@@ -3,11 +3,11 @@
 var request = require('request'),
     expect = require('chai').expect,
     _ = require('lodash'),
-    async = require('async'),
     rest = require('../../lib'),
-    test = require('../support');
+    test = require('../support'),
+    Promise = test.Sequelize.Promise;
 
-describe('Resource(associations)', function() {
+describe('Associations(BelongsTo)', function() {
   before(function() {
     test.models.User = test.db.define('users', {
       id: { type: test.Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
@@ -87,39 +87,28 @@ describe('Resource(associations)', function() {
 
   // TESTS
   describe('read', function() {
-    beforeEach(function(done) {
-      request.post({
-        url: test.baseUrl + '/addresses',
-        json: { street: '221B Baker Street', state_province: 'London', postal_code: 'NW1', country_code: '44'}
-      }, function(error, response, body) {
-        expect(response.statusCode).to.equal(201);
-        var address = body;
-
-        async.series([
-          function(callback) {
-            request.post({
-              url: test.baseUrl + '/users',
-              json: { username: 'sherlock', email: 'sherlock@holmes.com', address_id: address.id }
-            }, function(error, response, body) {
-              expect(response.statusCode).to.equal(201);
-              callback();
-            });
-          },
-          function(callback) {
-            request.post({
-              url: test.baseUrl + '/people',
-              json: { name: 'barney', addy_id: address.id }
-            }, function(error, response, body) {
-              expect(response.statusCode).to.equal(201);
-              done();
-            });
-          }
-        ], done);
-
+    beforeEach(function() {
+      return Promise.all([
+        test.models.Address.create({
+          street: '221B Baker Street',
+          state_province: 'London',
+          postal_code: 'NW1',
+          country_code: '44'
+        }),
+        test.models.User.create({
+          username: 'sherlock',
+          email: 'sherlock@holmes.com'
+        }),
+        test.models.Person.create({ name: 'barney' })
+      ]).spread(function(address, user, person) {
+        return Promise.all([
+          user.setAddress(address),
+          person.setAddy(address)
+        ]);
       });
     });
 
-    it('should include prefetched data for relations', function(done) {
+    it('should include prefetched data', function(done) {
       request.get({
         url: test.baseUrl + '/users/1'
       }, function(error, response, body) {
@@ -169,7 +158,7 @@ describe('Resource(associations)', function() {
   });
 
   describe('list', function() {
-    beforeEach(function(done) {
+    beforeEach(function() {
       test.expectedResult = [];
       var testData = [
         {
@@ -194,32 +183,24 @@ describe('Resource(associations)', function() {
         }
       ];
 
-      async.each(testData, function(info, callback) {
-        request.post({
-          url: test.baseUrl + '/addresses',
-          json: info.address
-        }, function(error, response, body) {
-          expect(response.statusCode).to.equal(201);
-          var userData = info.user;
-          var address = _.isObject(body) ? body : JSON.parse(body);
-          userData.address_id = address.id;
+      var userCount = 0,
+          addressCount = 0;
+      testData.map(function(data) {
+        return Promise.all([
+          test.models.User.create(data.user),
+          test.models.Address.create(data.address)
+        ]).spread(function(user, address) {
+          return user.setAddress(address);
+        }).then(function() {
+          userCount += 1;
+          addressCount += 1;
 
-          request.post({
-            url: test.baseUrl + '/users',
-            json: userData
-          }, function(error, response, body) {
-            expect(response.statusCode).to.equal(201);
-
-            var record = body;
-            record.address = address;
-            delete record.address_id;
-            test.expectedResult.push(record);
-            callback();
-          });
+          var record = data.user;
+          record.id = userCount;
+          record.address = data.address;
+          record.address.id = addressCount;
+          test.expectedResult.push(record);
         });
-      }, function(err) {
-        expect(err).to.not.exist;
-        done();
       });
     });
 
@@ -227,7 +208,7 @@ describe('Resource(associations)', function() {
       delete test.expectedResults;
     });
 
-    it('should include prefetched data for relations', function(done) {
+    it('should include prefetched data', function(done) {
       request.get({
         url: test.baseUrl + '/users'
       }, function(error, response, body) {
