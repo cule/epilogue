@@ -155,27 +155,6 @@ describe('Associations(BelongsTo)', function() {
       });
     });
 
-    it('should return associated data by url', function(done) {
-      request.get({
-        url: test.baseUrl + '/users/1/address'
-      }, function(error, response, body) {
-        console.log(body);
-
-        expect(response.statusCode).to.equal(200);
-        var result = _.isObject(body) ? body : JSON.parse(body);
-        var expected = {
-          id: 1,
-          street: '221B Baker Street',
-          state_province: 'London',
-          postal_code: 'NW1',
-          country_code: '44'
-        };
-
-        expect(result).to.eql(expected);
-        done();
-      });
-    });
-
   });
 
   describe('list', function() {
